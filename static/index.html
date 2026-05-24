@@ -1,0 +1,632 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Accessible Nav</title>
+<style>
+  :root {
+    --bg: #ffffff;
+    --fg: #111111;
+    --muted: #555;
+    --accent: #003e7e;
+    --accent-bg: #e6f0fb;
+    --border: #c8c8c8;
+    --focus: #ffae00;
+    --street-bg: #e3f4e3;
+    --street-fg: #14491b;
+    --driveway-bg: #fff1d6;
+    --driveway-fg: #6b3a00;
+    --alley-bg: #ebe6f3;
+    --alley-fg: #3a2670;
+    --parking-bg: #ffe3e3;
+    --parking-fg: #6a1414;
+    --service-bg: #eeeeee;
+    --service-fg: #333;
+    --place-bg: #e8f4f8;
+    --place-fg: #0c4a6e;
+    --transit-board-bg: #e0f2fe;
+    --transit-board-fg: #0369a1;
+    --transit-exit-bg: #fef9c3;
+    --transit-exit-fg: #a16207;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    font-size: 18px;
+    line-height: 1.5;
+    background: var(--bg);
+    color: var(--fg);
+  }
+  header {
+    background: var(--accent);
+    color: white;
+    padding: 1rem;
+  }
+  header h1 { margin: 0; font-size: 1.4rem; }
+  main { padding: 1rem; max-width: 900px; margin: 0 auto; }
+  form { display: grid; gap: 0.75rem; margin-bottom: 1.5rem; }
+  label { font-weight: 600; }
+  input[type="text"], select {
+    width: 100%;
+    padding: 0.6rem;
+    font-size: 1rem;
+    border: 2px solid var(--border);
+    border-radius: 4px;
+    background: white;
+    color: var(--fg);
+  }
+  input:focus, select:focus, button:focus {
+    outline: 3px solid var(--focus);
+    outline-offset: 2px;
+  }
+  .row { display: flex; gap: 0.75rem; flex-wrap: wrap; align-items: end; }
+  .row > * { flex: 1 1 200px; }
+  button {
+    padding: 0.7rem 1.2rem;
+    font-size: 1rem;
+    font-weight: 600;
+    border: 2px solid var(--accent);
+    background: var(--accent);
+    color: white;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+  button.secondary {
+    background: white;
+    color: var(--accent);
+  }
+  button:disabled { opacity: 0.5; cursor: not-allowed; }
+  .summary {
+    background: var(--accent-bg);
+    border: 2px solid var(--accent);
+    padding: 0.75rem 1rem;
+    border-radius: 4px;
+    margin-bottom: 1rem;
+  }
+  .summary strong { color: var(--accent); }
+  .controls { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 1rem; }
+  ol.steps {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+  ol.steps li {
+    padding: 0.7rem 1rem;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    gap: 0.75rem;
+    align-items: baseline;
+  }
+  ol.steps li:last-child { border-bottom: none; }
+  .step-num {
+    font-weight: 700;
+    min-width: 2.5rem;
+    color: var(--muted);
+  }
+  .step-tag {
+    display: inline-block;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    padding: 0.15rem 0.5rem;
+    border-radius: 3px;
+    letter-spacing: 0.5px;
+    white-space: nowrap;
+  }
+  .step-body { flex: 1; }
+  .step-meta { font-size: 0.85rem; color: var(--muted); margin-top: 0.2rem; }
+  li[data-type="direction"] { background: var(--accent-bg); }
+  li[data-type="direction"] .step-tag { background: var(--accent); color: white; }
+  li[data-type="street"] { background: var(--street-bg); }
+  li[data-type="street"] .step-tag { background: var(--street-fg); color: white; }
+  li[data-type="driveway"] { background: var(--driveway-bg); }
+  li[data-type="driveway"] .step-tag { background: var(--driveway-fg); color: white; }
+  li[data-type="alley"] { background: var(--alley-bg); }
+  li[data-type="alley"] .step-tag { background: var(--alley-fg); color: white; }
+  li[data-type="parking"], li[data-type="parking_entrance"] { background: var(--parking-bg); }
+  li[data-type="parking"] .step-tag,
+  li[data-type="parking_entrance"] .step-tag { background: var(--parking-fg); color: white; }
+  li[data-type="service_road"] { background: var(--service-bg); }
+  li[data-type="service_road"] .step-tag { background: var(--service-fg); color: white; }
+  li[data-type="destination"] { background: #fff8e1; border-top: 2px solid #e6a800; }
+  li[data-type="destination"] .step-tag { background: #b37700; color: white; }
+  li[data-type="place"] { background: var(--place-bg); }
+  li[data-type="place"] .step-tag { background: var(--place-fg); color: white; }
+  li[data-type="transit_board"] { background: var(--transit-board-bg); }
+  li[data-type="transit_board"] .step-tag { background: var(--transit-board-fg); color: white; }
+  li[data-type="transit_exit"] { background: var(--transit-exit-bg); }
+  li[data-type="transit_exit"] .step-tag { background: var(--transit-exit-fg); color: white; }
+  li[data-type="block_header"] {
+    background: #f0f4f8;
+    border-top: 2px solid var(--accent);
+    padding: 0.45rem 1rem;
+    font-size: 0.82rem;
+    font-weight: 700;
+    color: var(--accent);
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+  }
+  li[data-type="block_header"]:first-child { border-top: none; }
+  /* ── Tabs ───────────────────────────────────────────────── */
+  .tabs {
+    display: flex;
+    border-bottom: 2px solid var(--accent);
+    margin-bottom: 1.5rem;
+  }
+  .tab-btn {
+    padding: 0.6rem 1.4rem;
+    font-size: 1rem;
+    font-weight: 600;
+    border: none;
+    border-radius: 4px 4px 0 0;
+    background: transparent;
+    color: var(--muted);
+    cursor: pointer;
+  }
+  .tab-btn[aria-selected="true"] {
+    background: var(--accent);
+    color: white;
+  }
+  .tab-btn:hover:not([aria-selected="true"]) {
+    background: var(--accent-bg);
+    color: var(--accent);
+  }
+  .inter-result {
+    background: #f8f9fa;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 0.75rem 1rem;
+    margin-top: 0.75rem;
+  }
+  .inter-name { font-size: 1rem; font-weight: 700; color: var(--accent); margin-bottom: 0.4rem; }
+  .inter-signal {
+    display: inline-block;
+    font-size: 0.8rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    padding: 0.15rem 0.5rem;
+    border-radius: 3px;
+    margin-bottom: 0.5rem;
+  }
+  .inter-signal.traffic_signals  { background: #14491b; color: white; }
+  .inter-signal.stop_sign        { background: #6a1414; color: white; }
+  .inter-signal.marked_crossing  { background: #4a3800; color: white; }
+  .inter-signal.uncontrolled     { background: #555;    color: white; }
+  .inter-features { font-size: 0.85rem; color: var(--muted); margin-bottom: 0.5rem; }
+  .inter-streets  { font-size: 0.9rem; margin-bottom: 0.75rem; }
+  .inter-streets span { font-weight: 600; }
+  .inter-corners { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; }
+  .inter-corner { background: white; border: 1px solid var(--border); border-radius: 4px; padding: 0.5rem 0.75rem; }
+  .inter-corner h3 { margin: 0 0 0.25rem; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.5px; color: var(--muted); }
+  .inter-corner ul { margin: 0; padding: 0; list-style: none; font-size: 0.9rem; }
+  .inter-corner li { padding: 0.1rem 0; }
+  .inter-corner .empty { color: var(--muted); font-style: italic; font-size: 0.85rem; }
+  .inter-dist { font-size: 0.78rem; color: var(--muted); margin-left: 0.3rem; }
+  .inter-poi-addr { font-size: 0.78rem; color: var(--muted); margin-top: 0.05rem; }
+  .error {
+    background: #ffd7d7;
+    border: 2px solid #a51717;
+    color: #5b0000;
+    padding: 0.75rem;
+    border-radius: 4px;
+    margin-bottom: 1rem;
+  }
+  .sr-only {
+    position: absolute;
+    width: 1px; height: 1px;
+    padding: 0; margin: -1px; overflow: hidden;
+    clip: rect(0,0,0,0); white-space: nowrap; border: 0;
+  }
+  .route-heading {
+    font-size: 1.15rem;
+    margin: 0 0 0.75rem;
+    color: var(--accent);
+  }
+  .status { font-style: italic; color: var(--muted); }
+  @media (prefers-contrast: more) {
+    :root {
+      --border: #000;
+      --muted: #000;
+    }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>Accessible Navigation — <span id="area-name">Loading…</span></h1>
+</header>
+
+<main>
+  <!-- ── Tab bar ──────────────────────────────────────────── -->
+  <div role="tablist" class="tabs" aria-label="App sections">
+    <button role="tab" id="tab-route" class="tab-btn"
+            aria-selected="true" aria-controls="panel-route">Route Planner</button>
+    <button role="tab" id="tab-inter" class="tab-btn"
+            aria-selected="false" aria-controls="panel-inter"
+            tabindex="-1">Intersection Info</button>
+  </div>
+
+  <!-- ── Route planner panel ──────────────────────────────── -->
+  <div id="panel-route" role="tabpanel" aria-labelledby="tab-route">
+    <form id="route-form" aria-labelledby="form-heading">
+      <h2 id="form-heading" class="sr-only">Plan a route</h2>
+
+      <div>
+        <label for="origin">From</label>
+        <input id="origin" type="text" autocomplete="off" required
+               placeholder="e.g. 1275 E Colfax Ave, Denver"
+               aria-describedby="origin-hint">
+        <div id="origin-hint" class="sr-only">Enter a starting address in the current search area.</div>
+      </div>
+
+      <div>
+        <label for="destination">To</label>
+        <input id="destination" type="text" autocomplete="off" required
+               placeholder="e.g. Union Station"
+               aria-describedby="dest-hint">
+        <div id="dest-hint" class="sr-only">Enter a destination address or landmark.</div>
+      </div>
+
+      <div class="row">
+        <div>
+          <label for="mode">Mode</label>
+          <select id="mode">
+            <option value="walking">Walking</option>
+            <option value="transit">Transit</option>
+          </select>
+        </div>
+        <div>
+          <button type="submit" id="submit-btn">Get directions</button>
+        </div>
+      </div>
+    </form>
+
+    <div id="status" class="status" role="status" aria-live="polite"></div>
+    <div id="error" class="error" role="alert" hidden></div>
+    <div id="results" aria-live="polite"></div>
+  </div>
+
+  <!-- ── Intersection lookup panel ────────────────────────── -->
+  <div id="panel-inter" role="tabpanel" aria-labelledby="tab-inter" hidden>
+    <form id="inter-form" aria-labelledby="inter-form-heading">
+      <span id="inter-form-heading" class="sr-only">Look up an intersection</span>
+      <div class="row">
+        <div>
+          <label for="inter-query">Intersection</label>
+          <input id="inter-query" type="text" autocomplete="off"
+                 placeholder="e.g. 17th Ave &amp; Wewatta St"
+                 aria-describedby="inter-hint">
+          <div id="inter-hint" class="sr-only">
+            Enter two street names separated by &amp;, and, or /. The current search area is assumed.
+          </div>
+        </div>
+        <div>
+          <button type="submit" id="inter-btn">Look up</button>
+        </div>
+      </div>
+    </form>
+    <div id="inter-status" class="status" role="status" aria-live="polite"></div>
+    <div id="inter-error" class="error" role="alert" hidden></div>
+    <div id="inter-result" aria-live="polite"></div>
+  </div>
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+
+// ── Tab switching ─────────────────────────────────────────────────────────────
+
+const TAB_IDS = ["tab-route", "tab-inter"];
+
+function switchTab(activeId) {
+  TAB_IDS.forEach(id => {
+    const btn   = $(id);
+    const panel = $(btn.getAttribute("aria-controls"));
+    const on    = (id === activeId);
+    btn.setAttribute("aria-selected", String(on));
+    btn.tabIndex = on ? 0 : -1;
+    panel.hidden  = !on;
+  });
+}
+
+TAB_IDS.forEach((id, idx) => {
+  $(id).addEventListener("click", () => switchTab(id));
+  $(id).addEventListener("keydown", (e) => {
+    let next = null;
+    if (e.key === "ArrowRight") next = TAB_IDS[(idx + 1) % TAB_IDS.length];
+    if (e.key === "ArrowLeft")  next = TAB_IDS[(idx - 1 + TAB_IDS.length) % TAB_IDS.length];
+    if (next) { switchTab(next); $(next).focus(); e.preventDefault(); }
+  });
+});
+
+function tagLabel(type) {
+  return {
+    direction: "Direction",
+    street: "Cross street",
+    driveway: "Driveway",
+    alley: "Alley",
+    parking: "Parking lot",
+    parking_entrance: "Garage entrance",
+    service_road: "Service road",
+    destination: "Arrive",
+    place: "Place",
+    block_header: "Block",
+    transit_board: "Board",
+    transit_exit: "Exit transit",
+  }[type] || type;
+}
+
+function renderResults(data) {
+  const results = $("results");
+  results.innerHTML = "";
+
+  const heading = document.createElement("h2");
+  heading.className = "route-heading";
+  heading.textContent = `Route: ${data.origin} → ${data.destination}`;
+  results.appendChild(heading);
+
+  // Count only non-header steps for the summary.
+  const navSteps = data.steps.filter(s => s.step_type !== "block_header");
+
+  const summary = document.createElement("div");
+  summary.className = "summary";
+  summary.innerHTML = `
+    <div><strong>From:</strong> ${escapeHtml(data.origin)}</div>
+    <div><strong>To:</strong> ${escapeHtml(data.destination)}</div>
+    <div><strong>Distance:</strong> ${escapeHtml(data.total_distance)} &middot;
+         <strong>Time:</strong> ${escapeHtml(data.total_duration)} &middot;
+         <strong>Mode:</strong> ${escapeHtml(data.mode)}</div>
+    <div><strong>Steps:</strong> ${navSteps.length}</div>
+  `;
+  results.appendChild(summary);
+
+  const controls = document.createElement("div");
+  controls.className = "controls";
+  controls.innerHTML = `
+    <button type="button" class="secondary" id="speak-all">Read all aloud</button>
+    <button type="button" class="secondary" id="stop-speak">Stop reading</button>
+  `;
+  results.appendChild(controls);
+
+  const ol = document.createElement("ol");
+  ol.className = "steps";
+  ol.setAttribute("aria-label", "Route steps");
+
+  let stepNum = 0;
+  data.steps.forEach((step) => {
+    const li = document.createElement("li");
+    li.dataset.type = step.step_type;
+
+    if (step.step_type === "block_header") {
+      // Render as an accessible heading, not a numbered step.
+      li.setAttribute("role", "heading");
+      li.setAttribute("aria-level", "3");
+      li.innerHTML = `<span class="block-header-text">${escapeHtml(step.instruction)}</span>`;
+    } else {
+      stepNum++;
+      const meta = [];
+      if (step.distance) meta.push(step.distance);
+      if (step.duration) meta.push(step.duration);
+      li.innerHTML = `
+        <span class="step-num" aria-hidden="true">${stepNum}.</span>
+        <span class="step-body">
+          <span class="step-tag" aria-hidden="true">${escapeHtml(tagLabel(step.step_type))}</span>
+          <span class="sr-only">${escapeHtml(tagLabel(step.step_type))}: </span>
+          <span class="step-text">${escapeHtml(step.instruction)}</span>
+          ${meta.length ? `<div class="step-meta">${escapeHtml(meta.join(" · "))}</div>` : ""}
+          ${step.address ? `<div class="step-meta">${escapeHtml(step.address)}</div>` : ""}
+        </span>
+      `;
+    }
+    ol.appendChild(li);
+  });
+
+  results.appendChild(ol);
+
+  $("speak-all").addEventListener("click", () => speakAll(data.steps));
+  $("stop-speak").addEventListener("click", () => window.speechSynthesis.cancel());
+}
+
+function speakAll(steps) {
+  window.speechSynthesis.cancel();
+  let num = 0;
+  steps.forEach((step) => {
+    let text;
+    if (step.step_type === "block_header") {
+      // Announce block headers as orientation context, unnumbered.
+      text = step.instruction;
+    } else {
+      num++;
+      text = `Step ${num}. ${tagLabel(step.step_type)}. ${step.instruction}`;
+    }
+    const u = new SpeechSynthesisUtterance(text);
+    u.rate = 1.0;
+    window.speechSynthesis.speak(u);
+  });
+}
+
+function escapeHtml(s) {
+  if (s == null) return "";
+  return String(s)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+// ── Intersection lookup ───────────────────────────────────────────────────────
+
+// Full names for all 8 possible compass corners.
+const COMPASS_NAMES = {
+  N: "North corner", NE: "Northeast corner", E: "East corner",
+  SE: "Southeast corner", S: "South corner", SW: "Southwest corner",
+  W: "West corner", NW: "Northwest corner",
+};
+// Clockwise display order starting from north.
+const COMPASS_ORDER = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
+
+function renderIntersection(data) {
+  const container = $("inter-result");
+  container.innerHTML = "";
+
+  const div = document.createElement("div");
+  div.className = "inter-result";
+
+  // Name
+  const name = document.createElement("div");
+  name.className = "inter-name";
+  name.textContent = data.intersection;
+  div.appendChild(name);
+
+  // Signal badge
+  const sig = document.createElement("div");
+  sig.className = `inter-signal ${data.signal_type}`;
+  sig.textContent = data.signal_label;
+  div.appendChild(sig);
+
+  // Accessible features
+  if (data.signal_features && data.signal_features.length) {
+    const feat = document.createElement("div");
+    feat.className = "inter-features";
+    feat.textContent = data.signal_features.join(" · ");
+    div.appendChild(feat);
+  }
+
+  // Street orientations
+  if (data.streets && data.streets.length) {
+    const streets = document.createElement("div");
+    streets.className = "inter-streets";
+    streets.innerHTML = data.streets
+      .map(s => `<span>${escapeHtml(s.name)}</span> <em>${escapeHtml(s.orientation)}</em>`)
+      .join(" &nbsp;·&nbsp; ");
+    div.appendChild(streets);
+  }
+
+  // 4 corners grid — iterate in clockwise compass order, show only present keys.
+  const grid = document.createElement("div");
+  grid.className = "inter-corners";
+  const cornerKeys = COMPASS_ORDER.filter(k => k in (data.corners || {}));
+  for (const key of cornerKeys) {
+    const label = COMPASS_NAMES[key] || (key + " corner");
+    const pois  = (data.corners || {})[key] || [];
+    const corner = document.createElement("div");
+    corner.className = "inter-corner";
+
+    const h3 = document.createElement("h3");
+    h3.textContent = label;
+    corner.appendChild(h3);
+
+    if (pois.length === 0) {
+      const empty = document.createElement("p");
+      empty.className = "empty";
+      empty.textContent = "Nothing within 80 m";
+      corner.appendChild(empty);
+    } else {
+      const ul = document.createElement("ul");
+      pois.forEach(p => {
+        const li = document.createElement("li");
+        li.innerHTML = `${escapeHtml(p.name)} <span class="inter-dist" aria-label="${p.dist_m} metres away">${p.dist_m} m</span>`
+          + (p.address ? `<div class="inter-poi-addr">${escapeHtml(p.address)}</div>` : "");
+        ul.appendChild(li);
+      });
+      corner.appendChild(ul);
+    }
+    grid.appendChild(corner);
+  }
+  div.appendChild(grid);
+  container.appendChild(div);
+}
+
+$("inter-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const query = $("inter-query").value.trim();
+  if (!query) return;
+
+  $("inter-error").hidden = true;
+  $("inter-error").textContent = "";
+  $("inter-result").innerHTML = "";
+  $("inter-status").textContent = "Looking up intersection…";
+  $("inter-btn").disabled = true;
+
+  try {
+    const r = await fetch("/api/intersection", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ query }),
+    });
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({ detail: r.statusText }));
+      throw new Error(err.detail || "Request failed");
+    }
+    const data = await r.json();
+    $("inter-status").textContent = "";
+    renderIntersection(data);
+  } catch (err) {
+    $("inter-status").textContent = "";
+    $("inter-error").hidden = false;
+    $("inter-error").textContent = `Error: ${err.message}`;
+  } finally {
+    $("inter-btn").disabled = false;
+  }
+});
+
+// ── Config / area name ────────────────────────────────────────────────────────
+
+// Load and display the current search area from backend config.
+(async () => {
+  try {
+    const cfg = await fetch("/api/config").then(r => r.json());
+    const name = cfg.search_area_name || "Unknown area";
+    $("area-name").textContent = name;
+    document.title = `Accessible Nav — ${name}`;
+    $("origin").placeholder = `e.g. 1275 E Colfax Ave`;
+  } catch {
+    $("area-name").textContent = "Denver, CO";
+  }
+})();
+
+$("route-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  $("error").hidden = true;
+  $("error").textContent = "";
+  $("results").innerHTML = "";
+  $("status").textContent = "Calculating route and detecting street crossings…";
+  $("submit-btn").disabled = true;
+
+  const body = {
+    origin: $("origin").value.trim(),
+    destination: $("destination").value.trim(),
+    mode: $("mode").value,
+  };
+
+  try {
+    const r = await fetch("/api/route", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({ detail: r.statusText }));
+      throw new Error(err.detail || "Request failed");
+    }
+    const data = await r.json();
+    $("status").textContent = `Route ready: ${data.steps.length} steps.`;
+    renderResults(data);
+  } catch (err) {
+    $("status").textContent = "";
+    $("error").hidden = false;
+    $("error").textContent = `Error: ${err.message}`;
+  } finally {
+    $("submit-btn").disabled = false;
+  }
+});
+</script>
+</body>
+</html>

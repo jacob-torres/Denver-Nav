@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: denver-nav
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: GOOGLE_API_KEY
+        sync: false          # you paste the value in the Render dashboard
+      - key: SEARCH_AREA_NAME
+        value: Denver, CO
+      - key: SEARCH_BOUNDS
+        value: "39.50,-105.20|40.05,-104.45"
+      - key: SEARCH_COMPONENTS
+        value: "administrative_area:CO|country:US"
+      - key: PYTHON_VERSION
+        value: "3.12.9"      # latest stable on Render; compatible with all deps
