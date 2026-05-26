@@ -18,7 +18,106 @@ from app.crossings import (
     format_crossing_instruction,
 )
 from app.address_rules import destination_arrival_text
-from app.places import find_places_along_route, is_underground_only
+from app.places import find_places_along_route, is_underground_only, PLACES_V1_URL
+
+
+# ── Union Station bus concourse ───────────────────────────────────────────────
+# All constants reference WGS-84 coordinates for the Denver Union Station
+# pavilion and its two main pedestrian entrances.
+
+_US_LAT = 39.7529          # pavilion centre
+_US_LNG = -105.0006
+_US_ENTRY_RADIUS_M = 100   # metres — route points inside this radius are "in" Union Station
+
+# Each tuple is (lat, lng, human label).  The nearest one to the point where
+# the route first enters the building radius is used in the entry instruction.
+_US_ENTRANCES: list[tuple[float, float, str]] = [
+    (39.7524, -104.9997, "the Wewatta Street entrance"),
+    (39.7540, -105.0011, "the Chestnut Place entrance"),
+]
+
+
+def _us_nearest_entrance(lat: float, lng: float) -> str:
+    return min(_US_ENTRANCES, key=lambda e: _dist_m(lat, lng, e[0], e[1]))[2]
+
+
+def _us_find_entry(
+    route_points: list[tuple[float, float]],
+    route_line,
+    dest_lat: float | None = None,
+    dest_lng: float | None = None,
+) -> tuple[float, float, float] | None:
+    """Return (dist_along_route, lat, lng) for the point where the route
+    first enters the Union Station approach zone.
+
+    When ``dest_lat/dest_lng`` are supplied (the actual geocoded destination
+    coordinates), the zone is defined as within 100 m of that point — this
+    handles cases where Google geocodes a specific gate entrance to a location
+    that differs from the nominal building centre.  Falls back to the
+    hard-coded building centre when the destination coordinates are not known.
+    """
+    from shapely.geometry import Point as _Pt
+    if dest_lat is not None and dest_lng is not None:
+        centre_lat, centre_lng, radius = dest_lat, dest_lng, 60.0
+    else:
+        centre_lat, centre_lng, radius = _US_LAT, _US_LNG, float(_US_ENTRY_RADIUS_M)
+
+    for lat, lng in route_points:
+        if _dist_m(lat, lng, centre_lat, centre_lng) < radius:
+            return route_line.project(_Pt(lng, lat), normalized=True), lat, lng
+    return None
+
+
+def _fetch_us_gates_sync() -> list[dict]:
+    """Query the Places API for RTD bus gate POIs at Union Station.
+
+    Uses a 200 m radius so all gate positions in the underground concourse are
+    captured regardless of how their surface coordinates are stored in Google's
+    database.  Only entries whose name contains the word "gate" are returned.
+    """
+    headers = {
+        "Content-Type":   "application/json",
+        "X-Goog-Api-Key": GOOGLE_API_KEY,
+        "X-Goog-FieldMask": "places.id,places.displayName,places.location,places.types",
+    }
+    body = {
+        "locationRestriction": {
+            "circle": {
+                "center": {"latitude": _US_LAT, "longitude": _US_LNG},
+                "radius": 200.0,
+            }
+        },
+        "maxResultCount": 20,
+    }
+    try:
+        r = requests.post(PLACES_V1_URL, json=body, headers=headers, timeout=12)
+        r.raise_for_status()
+        raw = r.json().get("places", [])
+    except Exception as e:
+        print(f"[WARNING] Union Station gates fetch: {e}")
+        return []
+
+    _GATE_TRANSIT_TYPES = {"bus_station", "transit_station", "bus_stop", "transit_stop"}
+    gates: list[dict] = []
+    seen: set[str] = set()
+    for place in raw:
+        pid = place.get("id", "")
+        if pid in seen:
+            continue
+        name = (place.get("displayName") or {}).get("text", "").strip()
+        if not name or not re.search(r"\bgate\b", name, re.IGNORECASE):
+            continue
+        types = set(place.get("types", []))
+        if not (types & _GATE_TRANSIT_TYPES):
+            continue
+        loc = place.get("location") or {}
+        lat, lng = loc.get("latitude"), loc.get("longitude")
+        if lat is None or lng is None:
+            continue
+        seen.add(pid)
+        gates.append({"name": name, "lat": lat, "lng": lng})
+
+    return sorted(gates, key=lambda g: g["name"])
 
 
 def clean_instruction(text: str) -> str:
@@ -566,11 +665,35 @@ async def get_route(origin: str, destination: str, mode: str) -> dict:
 
     direction_steps, transit_ranges = build_direction_steps(leg, route_line)
 
-    # Fetch OSM crossings and Google Places in parallel.
-    crossings, places = await asyncio.gather(
-        find_crossings_along_route(route_points),
-        find_places_along_route(route_points),
+    # Detect whether this route ends inside the Union Station bus concourse.
+    # Trigger when either (a) the raw destination text names a gate/bus/concourse
+    # at Union Station, or (b) the final route point is within _US_ENTRY_RADIUS_M
+    # of the pavilion centre.
+    dest_lower = destination.lower()
+    _us_by_text = "union station" in dest_lower and any(
+        kw in dest_lower for kw in ("gate", "bus", "concourse", "rtd")
     )
+    _us_by_proximity = bool(
+        route_points
+        and _dist_m(route_points[-1][0], route_points[-1][1], _US_LAT, _US_LNG)
+        < _US_ENTRY_RADIUS_M
+    )
+    route_ends_at_us = _us_by_text or _us_by_proximity
+
+    # Fetch OSM crossings, Google Places, and (if needed) Union Station gates
+    # in parallel.
+    if route_ends_at_us:
+        crossings, places, us_gates = await asyncio.gather(
+            find_crossings_along_route(route_points),
+            find_places_along_route(route_points),
+            asyncio.to_thread(_fetch_us_gates_sync),
+        )
+    else:
+        crossings, places = await asyncio.gather(
+            find_crossings_along_route(route_points),
+            find_places_along_route(route_points),
+        )
+        us_gates = []
 
     # Detect above-ground before any merge suppression removes street crossings.
     has_street_crossings = any(c["crossing_type"] == "street" for c in crossings)
@@ -583,10 +706,77 @@ async def get_route(origin: str, destination: str, mode: str) -> dict:
         places    = [p for p in places
                      if not _in_transit(p["dist_along_route"], transit_ranges)]
 
+    # ── Union Station concourse transition ────────────────────────────────────
+    # When the route ends at Union Station, find the first route point that
+    # enters the building radius, inject an entry instruction and a descent
+    # instruction, suppress all crossings and places after that threshold, and
+    # append the bus gate POIs as place steps in the underground section.
+    dest_lat, dest_lng = (route_points[-1] if route_points else (None, None))
+    us_entry = (
+        _us_find_entry(route_points, route_line, dest_lat, dest_lng)
+        if route_ends_at_us else None
+    )
+
+    if us_entry is not None:
+        us_entry_dist, us_entry_lat, us_entry_lng = us_entry
+        entrance = _us_nearest_entrance(us_entry_lat, us_entry_lng)
+
+        # Suppress street crossings and street-level places inside the building.
+        crossings = [c for c in crossings if c["dist_along_route"] < us_entry_dist]
+        places    = [p for p in places    if p["dist_along_route"] < us_entry_dist]
+
+        # Inject Union Station entry and descent steps into the direction list.
+        direction_steps.extend([
+            {
+                "step_type": "direction",
+                "instruction": f"Enter Union Station through {entrance}",
+                "lat":              us_entry_lat,
+                "lng":              us_entry_lng,
+                "dist_along_route": us_entry_dist,
+                "distance": None,
+                "duration": None,
+                "name": None,
+            },
+            {
+                "step_type": "direction",
+                "instruction": (
+                    "Take the elevator, escalator, or stairs down "
+                    "to the underground bus concourse"
+                ),
+                "lat":              us_entry_lat,
+                "lng":              us_entry_lng,
+                "dist_along_route": us_entry_dist + 1e-6,
+                "distance": None,
+                "duration": None,
+                "name": None,
+            },
+        ])
+        direction_steps.sort(key=lambda s: s["dist_along_route"])
+
     steps = merge_and_dedupe(direction_steps, crossings)
     steps = insert_places(steps, places, has_street_crossings=has_street_crossings)
     steps = group_consecutive_steps(steps)
     steps = insert_block_headers(steps)
+
+    # Insert bus gate POIs after the descent step (underground section only).
+    if us_entry is not None and us_gates:
+        # Space gate steps out just above the entry dist so they sort after
+        # the descent instruction but before the destination step.
+        gate_base = us_entry_dist + 0.01
+        for i, gate in enumerate(us_gates):
+            steps.append({
+                "step_type": "place",
+                "instruction": gate["name"],
+                "lat":              gate["lat"],
+                "lng":              gate["lng"],
+                "dist_along_route": gate_base + i * 1e-4,
+                "distance": None,
+                "duration": None,
+                "name":    gate["name"],
+                "side":    None,
+                "address": None,
+            })
+        steps.sort(key=lambda s: s["dist_along_route"])
 
     # Append a destination-arrival step at the very end, computed from Denver
     # address system rules (NOW/SEE + downtown diagonal exceptions).
