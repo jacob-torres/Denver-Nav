@@ -70,3 +70,37 @@ class IntersectionResult(BaseModel):
     signal_label:    str
     signal_features: list[str]
     corners:         dict[str, list[CornerPOI]]
+
+
+# ── Address description ───────────────────────────────────────────────────────
+
+class DescribeRequest(BaseModel):
+    address: str = Field(..., min_length=3)
+
+
+class DescribedStreet(BaseModel):
+    name:        str
+    orientation: str
+    bearing:     float
+    dist_m:      int
+    direction:   str
+
+
+class DescribedPlace(BaseModel):
+    name:      str
+    address:   Optional[str] = None
+    dist_m:    int
+    direction: str
+    lat:       float
+    lng:       float
+    types:     list[str] = []
+
+
+class DescribeResult(BaseModel):
+    address:   str
+    lat:       float
+    lng:       float
+    streets:   list[DescribedStreet]
+    streets_available: bool = True
+    places:    list[DescribedPlace]
+    narrative: list[str]

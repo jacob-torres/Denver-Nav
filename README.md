@@ -5,13 +5,16 @@ walking and transit directions across the Denver metro. Every street crossing,
 driveway, alley, and parking-garage entrance along the route is detected and
 listed as its own step — designed for orientation and mobility use.
 
-This is **Phase 1**: routing + crossing detection. Phases 2–5 (personal
-landmarks DB, Denver Open Data construction feed, RTD GTFS, Claude AI narrative
-and follow-up chat) will be added next.
+The app has three tabs: **Route Planner**, **Intersection Info**, and
+**Describe Address**. Later phases (personal landmarks DB, Denver Open Data
+construction feed, RTD GTFS, Claude AI narrative and follow-up chat) are listed
+under "Coming next".
 
 ---
 
 ## What it does today
+
+### Route Planner
 
 1. You enter a start and end address (Denver metro).
 2. Backend geocodes both addresses via Google Maps.
@@ -19,9 +22,39 @@ and follow-up chat) will be added next.
 4. Backend decodes the route polyline and queries OpenStreetMap (free) for
    every street, driveway, alley, parking aisle, and parking-garage entrance
    that crosses the route.
-5. Frontend renders one ordered list interleaving Google's turn-by-turn
-   directions with every detected crossing, color-coded and labeled.
-6. A "Read all aloud" button uses your browser's speech synthesis.
+5. Google Places adds businesses along the route with their street address and
+   left/right side; Denver address rules (NOW/SEE, last-two-digits block
+   position) describe where the destination is on its block.
+6. Frontend renders one ordered list interleaving Google's turn-by-turn
+   directions, crossings, and places, grouped under block headers.
+7. A "Read all aloud" button uses your browser's speech synthesis.
+
+### Intersection Info
+
+Enter two streets to get the signal type, accessibility features, and the
+businesses on each corner.
+
+### Describe Address
+
+Enter a single address and get text (and "Read aloud") describing what is
+around it, with no route:
+
+- which side of its street the address is on and how far into the block
+  (Denver address rules), when OSM identifies the street;
+- the named streets within 100 m, each with its orientation and direction
+  from the address;
+- the businesses and landmarks within 120 m, grouped by street, in house-number
+  order, each with its address and distance/compass direction from the address.
+
+Places come from five overlapping Places searches (Google caps a search at 20
+results), filtered with the same type rules as routes. Permanently closed
+businesses and short-term rentals are dropped. If the public OpenStreetMap
+(Overpass) servers are overloaded, the streets part says so and the businesses
+are still listed. API: `POST /api/describe` with `{"address": "..."}`.
+
+Business data comes from Google Places and can be stale; suite and upper-floor
+tenants are listed at their street address and may not have a street-level
+entrance.
 
 ---
 
@@ -104,11 +137,15 @@ You'll see a numbered list of steps. Step types:
 ```
 denver-nav/
 ├── app/
-│   ├── main.py        FastAPI app, /api/geocode, /api/route, /
+│   ├── main.py        FastAPI app, /api/geocode, /api/route, /api/intersection, /api/describe, /
 │   ├── models.py      Pydantic request/response models
 │   ├── geocoding.py   Google Geocoding wrapper
 │   ├── routing.py     Google Directions + step merging
-│   └── crossings.py   OSM Overpass + Shapely crossing detection
+│   ├── crossings.py   OSM Overpass + Shapely crossing detection
+│   ├── places.py      Google Places along a route
+│   ├── address_rules.py  Denver address grid (NOW/SEE, block position)
+│   ├── intersection.py  Intersection lookup
+│   └── describe.py    Address-only description (streets + businesses)
 ├── static/
 │   └── index.html     Accessible frontend (ARIA, keyboard, speech)
 ├── data/              (reserved for streets.json, landmarks.db)

@@ -250,6 +250,9 @@
     <button role="tab" id="tab-inter" class="tab-btn"
             aria-selected="false" aria-controls="panel-inter"
             tabindex="-1">Intersection Info</button>
+    <button role="tab" id="tab-desc" class="tab-btn"
+            aria-selected="false" aria-controls="panel-desc"
+            tabindex="-1">Describe Address</button>
   </div>
 
   <!-- ── Route planner panel ──────────────────────────────── -->
@@ -315,6 +318,30 @@
     <div id="inter-error" class="error" role="alert" hidden></div>
     <div id="inter-result" aria-live="polite"></div>
   </div>
+
+  <!-- ── Address description panel ────────────────────────── -->
+  <div id="panel-desc" role="tabpanel" aria-labelledby="tab-desc" hidden>
+    <form id="desc-form" aria-labelledby="desc-form-heading">
+      <span id="desc-form-heading" class="sr-only">Describe the area around an address</span>
+      <div class="row">
+        <div>
+          <label for="desc-query">Address</label>
+          <input id="desc-query" type="text" autocomplete="off"
+                 placeholder="e.g. 1630 Chestnut Pl"
+                 aria-describedby="desc-hint">
+          <div id="desc-hint" class="sr-only">
+            Enter an address. The streets and businesses around it are described in text.
+          </div>
+        </div>
+        <div>
+          <button type="submit" id="desc-btn">Describe</button>
+        </div>
+      </div>
+    </form>
+    <div id="desc-status" class="status" role="status" aria-live="polite"></div>
+    <div id="desc-error" class="error" role="alert" hidden></div>
+    <div id="desc-result" aria-live="polite"></div>
+  </div>
 </main>
 
 <script>
@@ -322,7 +349,7 @@ const $ = (id) => document.getElementById(id);
 
 // ── Tab switching ─────────────────────────────────────────────────────────────
 
-const TAB_IDS = ["tab-route", "tab-inter"];
+const TAB_IDS = ["tab-route", "tab-inter", "tab-desc"];
 
 function switchTab(activeId) {
   TAB_IDS.forEach(id => {
@@ -574,6 +601,69 @@ $("inter-form").addEventListener("submit", async (e) => {
     $("inter-error").textContent = `Error: ${err.message}`;
   } finally {
     $("inter-btn").disabled = false;
+  }
+});
+
+// ── Address description ───────────────────────────────────────────────────────
+
+function renderDescription(data) {
+  const container = $("desc-result");
+  container.innerHTML = "";
+
+  const h = document.createElement("h2");
+  h.textContent = data.address;
+  container.appendChild(h);
+
+  const controls = document.createElement("div");
+  controls.innerHTML = `<button type="button" class="secondary" id="desc-speak">Read aloud</button> `
+    + `<button type="button" class="secondary" id="desc-stop">Stop reading</button>`;
+  container.appendChild(controls);
+
+  data.narrative.forEach(line => {
+    const p = document.createElement("p");
+    p.textContent = line;
+    container.appendChild(p);
+  });
+
+  $("desc-speak").addEventListener("click", () => {
+    window.speechSynthesis.cancel();
+    [data.address, ...data.narrative].forEach(t => {
+      window.speechSynthesis.speak(new SpeechSynthesisUtterance(t));
+    });
+  });
+  $("desc-stop").addEventListener("click", () => window.speechSynthesis.cancel());
+}
+
+$("desc-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const address = $("desc-query").value.trim();
+  if (!address) return;
+
+  $("desc-error").hidden = true;
+  $("desc-error").textContent = "";
+  $("desc-result").innerHTML = "";
+  $("desc-status").textContent = "Looking up streets and businesses…";
+  $("desc-btn").disabled = true;
+
+  try {
+    const r = await fetch("/api/describe", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ address }),
+    });
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({ detail: r.statusText }));
+      throw new Error(err.detail || "Request failed");
+    }
+    const data = await r.json();
+    $("desc-status").textContent = `Found ${data.streets.length} streets and ${data.places.length} places.`;
+    renderDescription(data);
+  } catch (err) {
+    $("desc-status").textContent = "";
+    $("desc-error").hidden = false;
+    $("desc-error").textContent = `Error: ${err.message}`;
+  } finally {
+    $("desc-btn").disabled = false;
   }
 });
 

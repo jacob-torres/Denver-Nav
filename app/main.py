@@ -12,11 +12,14 @@ from app.models import (
     RouteResponse,
     IntersectionRequest,
     IntersectionResult,
+    DescribeRequest,
+    DescribeResult,
 )
 from app.config import SEARCH_AREA_NAME
 from app.geocoding import geocode_address
 from app.routing import get_route
 from app.intersection import lookup_intersection
+from app.describe import describe_address
 
 STATIC_DIR = Path(__file__).parent.parent / "static"
 
@@ -79,6 +82,18 @@ async def intersection(req: IntersectionRequest):
     except Exception as e:
         tb = traceback.format_exc()
         print(f"\n[ERROR] /api/intersection:\n{tb}", flush=True)
+        raise HTTPException(status_code=500, detail=f"{type(e).__name__}: {e}")
+
+
+@app.post("/api/describe", response_model=DescribeResult)
+async def describe(req: DescribeRequest):
+    try:
+        return await describe_address(req.address)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        tb = traceback.format_exc()
+        print(f"\n[ERROR] /api/describe:\n{tb}", flush=True)
         raise HTTPException(status_code=500, detail=f"{type(e).__name__}: {e}")
 
 
